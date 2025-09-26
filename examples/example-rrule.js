@@ -13,19 +13,19 @@
  * fixed window (here: calendar year 2017) keeps expansion finite and practical.
  */
 
-const path = require('node:path');
-const moment = require('moment-timezone');
-const ical = require('../node-ical.js');
+const path = require("node:path");
+const moment = require("moment-timezone");
+const ical = require("../node-ical.js");
 
 // Load an example iCal file with various recurring events.
-const data = ical.parseFile(path.join(__dirname, 'example-rrule.ics'));
+const data = ical.parseFile(path.join(__dirname, "example-rrule.ics"));
 
 // Extract VEVENT components for iteration.
-const events = Object.values(data).filter(item => item.type === 'VEVENT');
+const events = Object.values(data).filter((item) => item.type === "VEVENT");
 
 // Use a fixed date range to keep expansion finite (recurrences can be unbounded).
-const rangeStart = moment('2017-01-01');
-const rangeEnd = moment('2017-12-31');
+const rangeStart = moment("2017-01-01");
+const rangeEnd = moment("2017-12-31");
 
 for (const event of events) {
   const title = event.summary;
@@ -38,8 +38,8 @@ for (const event of events) {
   // Simple case: no RRULE — print the single event.
   if (!event.rrule) {
     console.log(`title:${title}`);
-    console.log(`startDate:${startDate.format('MMMM Do YYYY, h:mm:ss a')}`);
-    console.log(`endDate:${endDate.format('MMMM Do YYYY, h:mm:ss a')}`);
+    console.log(`startDate:${startDate.format("MMMM Do YYYY, h:mm:ss a")}`);
+    console.log(`endDate:${endDate.format("MMMM Do YYYY, h:mm:ss a")}`);
     console.log(`duration:${moment.duration(duration).humanize()}`);
     console.log();
     continue;
@@ -55,7 +55,7 @@ for (const event of events) {
       const rDate = new Date(r);
       // Avoid duplicates: only add if not already present from rrule.
       const insideRange = moment(rDate).isBetween(rangeStart, rangeEnd) === true;
-      const alreadyPresent = dates.some(d => d.getTime() === rDate.getTime());
+      const alreadyPresent = dates.some((d) => d.getTime() === rDate.getTime());
       if (!insideRange && !alreadyPresent) {
         dates.push(rDate);
       }
@@ -96,8 +96,8 @@ for (const event of events) {
 
     if (showRecurrence) {
       console.log(`title:${recurrenceTitle}`);
-      console.log(`startDate:${startDate.format('MMMM Do YYYY, h:mm:ss a')}`);
-      console.log(`endDate:${endDate.format('MMMM Do YYYY, h:mm:ss a')}`);
+      console.log(`startDate:${startDate.format("MMMM Do YYYY, h:mm:ss a")}`);
+      console.log(`endDate:${endDate.format("MMMM Do YYYY, h:mm:ss a")}`);
       console.log(`duration:${moment.duration(curDuration).humanize()}`);
       console.log();
     }

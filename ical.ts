@@ -1,8 +1,7 @@
 /* eslint-disable max-depth, max-params, no-warning-comments, complexity */
 
-const {randomUUID} = require('node:crypto');
-const moment = require('moment-timezone');
-const rrule = require('rrule').RRule;
+import moment from "moment-timezone";
+import rrule from "rrule";
 
 /** **************
  *  A tolerant, minimal icalendar parser
@@ -12,21 +11,21 @@ const rrule = require('rrule').RRule;
  * ************* */
 
 // Unescape Text re RFC 4.3.11
-const text = function (t = '') {
+function text(t = "") {
   return t
-    .replaceAll(String.raw`\,`, ',') // Unescape escaped commas
-    .replaceAll(String.raw`\;`, ';') // Unescape escaped semicolons
-    .replaceAll(/\\[nN]/g, '\n') // Replace escaped newlines with actual newlines
-    .replaceAll('\\\\', '\\') // Unescape backslashes
-    .replace(/^"(.*)"$/, '$1'); // Remove surrounding double quotes, if present
-};
+    .replaceAll(String.raw`\,`, ",") // Unescape escaped commas
+    .replaceAll(String.raw`\;`, ";") // Unescape escaped semicolons
+    .replaceAll(/\\[nN]/g, "\n") // Replace escaped newlines with actual newlines
+    .replaceAll("\\\\", "\\") // Unescape backslashes
+    .replace(/^"(.*)"$/, "$1"); // Remove surrounding double quotes, if present
+}
 
-const parseValue = function (value) {
-  if (value === 'TRUE') {
+function parseValue(value: string) {
+  if (value === "TRUE") {
     return true;
   }
 
-  if (value === 'FALSE') {
+  if (value === "FALSE") {
     return false;
   }
 
@@ -36,18 +35,18 @@ const parseValue = function (value) {
   }
 
   // Remove quotes if found
-  value = value.replace(/^"(.*)"$/, '$1');
+  value = value.replace(/^"(.*)"$/, "$1");
 
   return value;
-};
+}
 
-const parseParameters = function (p) {
-  const out = {};
+const parseParameters = function (p: string[]) {
+  const out: Record<string, string | number | boolean> = {};
   for (const element of p) {
-    if (element.includes('=')) {
-      const segs = element.split('=');
+    if (element.includes("=")) {
+      const segs = element.split("=");
 
-      out[segs[0]] = parseValue(segs.slice(1).join('='));
+      out[segs[0]] = parseValue(segs.slice(1).join("="));
     }
   }
 
@@ -57,8 +56,16 @@ const parseParameters = function (p) {
   return out;
 };
 
-const storeValueParameter = function (name) {
-  return function (value, curr) {
+const storeValueParameter = function (name: string) {
+  return function (
+    value:
+      | string
+      | {
+          params: Record<string, string | number | boolean>;
+          val: string;
+        },
+    curr: Record<string, string | number | boolean>
+  ) {
     const current = curr[name];
 
     if (Array.isArray(current)) {
@@ -72,9 +79,14 @@ const storeValueParameter = function (name) {
   };
 };
 
-const storeParameter = function (name) {
-  return function (value, parameters, curr) {
-    const data = parameters && parameters.length > 0 && !(parameters.length === 1 && (parameters[0] === 'CHARSET=utf-8' || parameters[0] === 'VALUE=TEXT')) ? {params: parseParameters(parameters), val: text(value)} : text(value);
+const storeParameter = function (name: string) {
+  return function (value?: string, parameters?: string[], curr) {
+    const data =
+      parameters &&
+      parameters.length > 0 &&
+      !(parameters.length === 1 && (parameters[0] === "CHARSET=utf-8" || parameters[0] === "VALUE=TEXT"))
+        ? { params: parseParameters(parameters), val: text(value) }
+        : text(value);
 
     return storeValueParameter(name)(data, curr);
   };
@@ -91,7 +103,7 @@ const addTZ = function (dt, parameters) {
     dt.tz = p.TZID.toString();
     // Remove surrounding quotes if found at the beginning and at the end of the string
     // (Occurs when parsing Microsoft Exchange events containing TZID with Windows standard format instead IANA)
-    dt.tz = dt.tz.replace(/^"(.*)"$/, '$1');
+    dt.tz = dt.tz.replace(/^"(.*)"$/, "$1");
   }
 
   return dt;
@@ -99,16 +111,16 @@ const addTZ = function (dt, parameters) {
 
 let zoneTable = null;
 function getIanaTZFromMS(msTZName) {
-  zoneTable ||= require('./windowsZones.json');
+  zoneTable ||= require("./windowsZones.json");
 
   // Get hash entry
   let he = zoneTable[msTZName];
   // Handle comma separated list, if we still don't have a match
-  if (!he && msTZName.includes(',')) {
+  if (!he && msTZName.includes(",")) {
     // Just use the first string in name list
-    const firstLocationName = msTZName.split(',')[0];
+    const firstLocationName = msTZName.split(",")[0];
     // Loop thru the zonetable entries, save all that match
-    const temporaryLookup = Object.keys(zoneTable).filter(tzEntry => {
+    const temporaryLookup = Object.keys(zoneTable).filter((tzEntry) => {
       if (tzEntry.includes(firstLocationName)) {
         return true;
       }
@@ -128,18 +140,22 @@ function getIanaTZFromMS(msTZName) {
 
 function getTimeZone(value) {
   let tz = value;
-  let found = '';
+  let found = "";
   // If this is the custom timezone from MS Outlook
-  if (tz === 'tzone://Microsoft/Custom' || tz.startsWith('Customized Time Zone') || tz.startsWith('tzone://Microsoft/')) {
+  if (
+    tz === "tzone://Microsoft/Custom" ||
+    tz.startsWith("Customized Time Zone") ||
+    tz.startsWith("tzone://Microsoft/")
+  ) {
     // Set it to the local timezone, because we can't tell
     tz = moment.tz.guess();
   }
 
   // Remove quotes if found
-  tz = tz.replace(/^"(.*)"$/, '$1');
+  tz = tz.replace(/^"(.*)"$/, "$1");
 
   // Watch out for windows timezones, or multiple with comma separatos
-  if (tz && (tz.includes(' ') || tz.includes(','))) {
+  if (tz && (tz.includes(" ") || tz.includes(","))) {
     const tz1 = getIanaTZFromMS(tz);
     if (tz1) {
       tz = tz1;
@@ -149,7 +165,7 @@ function getTimeZone(value) {
   // Watch out for offset timezones
   // If the conversion above didn't find any matching IANA tz
   // And offset is still present
-  if (tz && tz.startsWith('(')) {
+  if (tz && tz.startsWith("(")) {
     // Extract just the offset
     const regex = /[+|-]\d*:\d*/;
     found = tz.match(regex);
@@ -157,23 +173,25 @@ function getTimeZone(value) {
   }
 
   // Timezone not confirmed yet
-  if (found === '') {
+  if (found === "") {
     // Lookup tz
-    found = moment.tz.names().find(zone => zone === tz);
+    found = moment.tz.names().find((zone) => zone === tz);
   }
 
-  return found === '' ? tz : found;
+  return found === "" ? tz : found;
 }
 
 function isDateOnly(value, parameters) {
-  const dateOnly = ((parameters && parameters.includes('VALUE=DATE') && !parameters.includes('VALUE=DATE-TIME')) || /^\d{8}$/.test(value) === true);
+  const dateOnly =
+    (parameters && parameters.includes("VALUE=DATE") && !parameters.includes("VALUE=DATE-TIME")) ||
+    /^\d{8}$/.test(value) === true;
   return dateOnly;
 }
 
 const typeParameter = function (name) {
   // Typename is not used in this function?
   return function (value, parameters, curr) {
-    const returnValue = isDateOnly(value, parameters) ? 'date' : 'date-time';
+    const returnValue = isDateOnly(value, parameters) ? "date" : "date-time";
     return storeValueParameter(name)(returnValue, curr);
   };
 };
@@ -181,12 +199,12 @@ const typeParameter = function (name) {
 const dateParameter = function (name) {
   return function (value, parameters, curr, stack) {
     // The regex from main gets confused by extra :
-    const pi = parameters.indexOf('TZID=tzone');
+    const pi = parameters.indexOf("TZID=tzone");
     if (pi !== -1) {
       // Correct the parameters with the part on the value
-      parameters[pi] = parameters[pi] + ':' + value.split(':')[0];
+      parameters[pi] = parameters[pi] + ":" + value.split(":")[0];
       // Get the date from the field, other code uses the value parameter
-      value = value.split(':')[1];
+      value = value.split(":")[1];
     }
 
     let newDate = text(value);
@@ -210,49 +228,56 @@ const dateParameter = function (name) {
     // Typical RFC date-time format
     const comps = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/.exec(value);
     if (comps !== null) {
-      if (comps[7] === 'Z') {
+      if (comps[7] === "Z") {
         // GMT
-        newDate = new Date(Date.UTC(
-          Number.parseInt(comps[1], 10),
-          Number.parseInt(comps[2], 10) - 1,
-          Number.parseInt(comps[3], 10),
-          Number.parseInt(comps[4], 10),
-          Number.parseInt(comps[5], 10),
-          Number.parseInt(comps[6], 10),
-        ));
-        newDate.tz = 'Etc/UTC';
-      } else if (parameters && parameters[0] && parameters[0].includes('TZID=') && parameters[0].split('=')[1]) {
+        newDate = new Date(
+          Date.UTC(
+            Number.parseInt(comps[1], 10),
+            Number.parseInt(comps[2], 10) - 1,
+            Number.parseInt(comps[3], 10),
+            Number.parseInt(comps[4], 10),
+            Number.parseInt(comps[5], 10),
+            Number.parseInt(comps[6], 10)
+          )
+        );
+        newDate.tz = "Etc/UTC";
+      } else if (parameters && parameters[0] && parameters[0].includes("TZID=") && parameters[0].split("=")[1]) {
         // Get the timezone from the parameters TZID value
-        let tz = parameters[0].split('=')[1];
-        let found = '';
-        let offset = '';
+        let tz = parameters[0].split("=")[1];
+        let found = "";
+        let offset = "";
 
         // If this is the custom timezone from MS Outlook
-        if (tz === 'tzone://Microsoft/Custom' || tz === '(no TZ description)' || tz.startsWith('Customized Time Zone') || tz.startsWith('tzone://Microsoft/')) {
+        if (
+          tz === "tzone://Microsoft/Custom" ||
+          tz === "(no TZ description)" ||
+          tz.startsWith("Customized Time Zone") ||
+          tz.startsWith("tzone://Microsoft/")
+        ) {
           // Set it to the local timezone, because we can't tell
           tz = moment.tz.guess();
-          parameters[0] = 'TZID=' + tz;
+          parameters[0] = "TZID=" + tz;
         }
 
         // Remove quotes if found
-        tz = tz.replace(/^"(.*)"$/, '$1');
+        tz = tz.replace(/^"(.*)"$/, "$1");
 
         // Watch out for windows timezones
-        if (tz && (tz.includes(' ') || tz.includes(','))) {
+        if (tz && (tz.includes(" ") || tz.includes(","))) {
           const tz1 = getTimeZone(tz);
           if (tz1) {
             tz = tz1;
             // We have a confirmed timezone, don't use offset, may confuse DST/STD time
-            offset = '';
+            offset = "";
             // Fix the parameters for later use
-            parameters[0] = 'TZID=' + tz;
+            parameters[0] = "TZID=" + tz;
           }
         }
 
         // Watch out for offset timezones
         // If the conversion above didn't find any matching IANA tz
         // And offset is still present
-        if (tz && tz.startsWith('(')) {
+        if (tz && tz.startsWith("(")) {
           // Extract just the offset
           const regex = /[+|-]\d*:\d*/;
           offset = tz.match(regex);
@@ -261,18 +286,18 @@ const dateParameter = function (name) {
         }
 
         // Timezone not confirmed yet
-        if (found === '') {
+        if (found === "") {
           // Lookup tz
-          found = moment.tz.names().find(zone => zone === tz);
+          found = moment.tz.names().find((zone) => zone === tz);
         }
 
         // Timezone confirmed or forced to offset
         // Prefer explicit numeric offset, then TZID, otherwise fall back to naive local time
         const offsetString = Array.isArray(offset) ? offset[0] : offset;
-        if (typeof offsetString === 'string' && offsetString.length > 0) {
-          newDate = moment.parseZone(`${value}${offsetString}`, 'YYYYMMDDTHHmmssZ').toDate();
+        if (typeof offsetString === "string" && offsetString.length > 0) {
+          newDate = moment.parseZone(`${value}${offsetString}`, "YYYYMMDDTHHmmssZ").toDate();
         } else if (tz && moment.tz.zone(tz)) {
-          newDate = moment.tz(value, 'YYYYMMDDTHHmmss', tz).toDate();
+          newDate = moment.tz(value, "YYYYMMDDTHHmmss", tz).toDate();
         } else {
           newDate = new Date(
             Number.parseInt(comps[1], 10),
@@ -280,7 +305,7 @@ const dateParameter = function (name) {
             Number.parseInt(comps[3], 10),
             Number.parseInt(comps[4], 10),
             Number.parseInt(comps[5], 10),
-            Number.parseInt(comps[6], 10),
+            Number.parseInt(comps[6], 10)
           );
         }
 
@@ -288,26 +313,28 @@ const dateParameter = function (name) {
         newDate = addTZ(newDate, parameters);
       } else {
         // Get the time zone from the stack
-        const stackItemWithTimeZone
-          = (stack || []).find(item => Object.values(item).find(subItem => subItem.type === 'VTIMEZONE')) || {};
-        const vTimezone
-          = Object.values(stackItemWithTimeZone).find(({type}) => type === 'VTIMEZONE');
+        const stackItemWithTimeZone =
+          (stack || []).find((item) => Object.values(item).find((subItem) => subItem.type === "VTIMEZONE")) || {};
+        const vTimezone = Object.values(stackItemWithTimeZone).find(({ type }) => type === "VTIMEZONE");
 
         // If the VTIMEZONE contains multiple TZIDs (against RFC), use last one
         const normalizedTzId = vTimezone
-          ? (Array.isArray(vTimezone.tzid) ? vTimezone.tzid.at(-1) : vTimezone.tzid)
+          ? Array.isArray(vTimezone.tzid)
+            ? vTimezone.tzid.at(-1)
+            : vTimezone.tzid
           : null;
 
-        newDate = normalizedTzId && moment.tz.zone(normalizedTzId)
-          ? moment.tz(value, 'YYYYMMDDTHHmmss', normalizedTzId).toDate()
-          : new Date(
-            Number.parseInt(comps[1], 10),
-            Number.parseInt(comps[2], 10) - 1,
-            Number.parseInt(comps[3], 10),
-            Number.parseInt(comps[4], 10),
-            Number.parseInt(comps[5], 10),
-            Number.parseInt(comps[6], 10),
-          );
+        newDate =
+          normalizedTzId && moment.tz.zone(normalizedTzId)
+            ? moment.tz(value, "YYYYMMDDTHHmmss", normalizedTzId).toDate()
+            : new Date(
+                Number.parseInt(comps[1], 10),
+                Number.parseInt(comps[2], 10) - 1,
+                Number.parseInt(comps[3], 10),
+                Number.parseInt(comps[4], 10),
+                Number.parseInt(comps[5], 10),
+                Number.parseInt(comps[6], 10)
+              );
       }
     }
 
@@ -316,11 +343,11 @@ const dateParameter = function (name) {
   };
 };
 
-const geoParameter = function (name) {
+const geoParameter = function (name: string) {
   return function (value, parameters, curr) {
     storeParameter(value, parameters, curr);
-    const parts = value.split(';');
-    curr[name] = {lat: Number(parts[0]), lon: Number(parts[1])};
+    const parts = value.split(";");
+    curr[name] = { lat: Number(parts[0]), lon: Number(parts[1]) };
     return curr;
   };
 };
@@ -329,9 +356,9 @@ const categoriesParameter = function (name) {
   return function (value, parameters, curr) {
     storeParameter(value, parameters, curr);
     if (curr[name] === undefined) {
-      curr[name] = value ? value.split(',').map(s => s.trim()) : [];
+      curr[name] = value ? value.split(",").map((s) => s.trim()) : [];
     } else if (value) {
-      curr[name] = curr[name].concat(value.split(',').map(s => s.trim()));
+      curr[name] = curr[name].concat(value.split(",").map((s) => s.trim()));
     }
 
     return curr;
@@ -357,16 +384,16 @@ const categoriesParameter = function (name) {
 const exdateParameter = function (name) {
   return function (value, parameters, curr) {
     curr[name] ||= [];
-    const dates = value ? value.split(',').map(s => s.trim()) : [];
+    const dates = value ? value.split(",").map((s) => s.trim()) : [];
     for (const entry of dates) {
       const exdate = [];
       dateParameter(name)(entry, parameters, exdate);
 
       if (exdate[name]) {
-        if (typeof exdate[name].toISOString === 'function') {
+        if (typeof exdate[name].toISOString === "function") {
           curr[name][exdate[name].toISOString().slice(0, 10)] = exdate[name];
         } else {
-          throw new TypeError('No toISOString function in exdate[name] = ' + exdate[name]);
+          throw new TypeError("No toISOString function in exdate[name] = " + exdate[name]);
         }
       }
     }
@@ -385,7 +412,7 @@ const addFBType = function (fb, parameters) {
   const p = parseParameters(parameters);
 
   if (parameters && p) {
-    fb.type = p.FBTYPE || 'BUSY';
+    fb.type = p.FBTYPE || "BUSY";
   }
 
   return fb;
@@ -399,9 +426,9 @@ const freebusyParameter = function (name) {
 
     storeParameter(value, parameters, fb);
 
-    const parts = value.split('/');
+    const parts = value.split("/");
 
-    for (const [index, name] of ['start', 'end'].entries()) {
+    for (const [index, name] of ["start", "end"].entries()) {
       dateParameter(name)(parts[index], parameters, fb);
     }
 
@@ -411,16 +438,16 @@ const freebusyParameter = function (name) {
 
 module.exports = {
   objectHandlers: {
-    BEGIN(component, parameters, curr, stack) {
+    "BEGIN"(component, parameters, curr, stack) {
       stack.push(curr);
 
-      return {type: component, params: parameters};
+      return { type: component, params: parameters };
     },
-    END(value, parameters, curr, stack) {
+    "END"(value, parameters, curr, stack) {
       // Original end function
       const originalEnd = function (component, parameters_, curr, stack) {
         // Prevents the need to search the root of the tree for the VCALENDAR object
-        if (component === 'VCALENDAR') {
+        if (component === "VCALENDAR") {
           // Scan all high level object in curr and drop all strings
           let key;
           let object;
@@ -432,7 +459,7 @@ module.exports = {
             }
 
             object = curr[key];
-            if (typeof object === 'string') {
+            if (typeof object === "string") {
               highLevel[key] = object;
               delete curr[key];
             }
@@ -447,20 +474,21 @@ module.exports = {
 
         const par = stack.pop();
 
-        if (!curr.end) { // RFC5545, 3.6.1
+        if (!curr.end) {
+          // RFC5545, 3.6.1
           // Set the end according to the datetype of event
-          curr.end = (curr.datetype === 'date-time') ? new Date(curr.start) : moment.utc(curr.start).add(1, 'days').toDate();
+          curr.end =
+            curr.datetype === "date-time" ? new Date(curr.start) : moment.utc(curr.start).add(1, "days").toDate();
 
           // If there was a duration specified
           // see RFC5545, 3.3.6 (no year and month)
           if (curr.duration !== undefined) {
-            const durationUnits
-            = {
-              W: 'weeks',
-              D: 'days',
-              H: 'hours',
-              M: 'minutes',
-              S: 'seconds',
+            const durationUnits = {
+              W: "weeks",
+              D: "days",
+              H: "hours",
+              M: "minutes",
+              S: "seconds",
             };
             // Get the list of duration elements
             const duration = curr.duration.match(/-?\d{1,10}[WDHMS]/g);
@@ -470,7 +498,7 @@ module.exports = {
             let newEnd = startMoment;
 
             // Is the 1st character a negative sign?
-            const indicator = curr.duration.startsWith('-') ? -1 : 1;
+            const indicator = curr.duration.startsWith("-") ? -1 : 1;
 
             for (const r of duration) {
               const unit = r.slice(-1);
@@ -491,7 +519,8 @@ module.exports = {
           if (par[curr.uid] === undefined) {
             par[curr.uid] = curr;
 
-            if (par.method) { // RFC5545, 3.2
+            if (par.method) {
+              // RFC5545, 3.2
               par[curr.uid].method = par.method;
             }
           } else if (curr.recurrenceid === undefined) {
@@ -549,28 +578,32 @@ module.exports = {
             // Save off our cloned recurrence object into the array, keyed by date but not time.
             // We key by date only to avoid timezone and "floating time" problems (where the time isn't associated with a timezone).
             // TODO: See if this causes a problem with events that have multiple recurrences per day.
-            if (typeof curr.recurrenceid.toISOString === 'function') {
+            if (typeof curr.recurrenceid.toISOString === "function") {
               par[curr.uid].recurrences[curr.recurrenceid.toISOString().slice(0, 10)] = recurrenceObject;
-            } else { // Removed issue 56
-              throw new TypeError('No toISOString function in curr.recurrenceid =' + curr.recurrenceid);
+            } else {
+              // Removed issue 56
+              throw new TypeError("No toISOString function in curr.recurrenceid =" + curr.recurrenceid);
             }
           }
 
           // One more specific fix - in the case that an RRULE entry shows up after a RECURRENCE-ID entry,
           // let's make sure to clear the recurrenceid off the parent field.
-          if (curr.uid !== '__proto__'
-            && par[curr.uid].rrule !== undefined
-            && par[curr.uid].recurrenceid !== undefined) {
+          if (
+            curr.uid !== "__proto__" &&
+            par[curr.uid].rrule !== undefined &&
+            par[curr.uid].recurrenceid !== undefined
+          ) {
             delete par[curr.uid].recurrenceid;
           }
-        } else if (component === 'VALARM' && (par.type === 'VEVENT' || par.type === 'VTODO')) {
+        } else if (component === "VALARM" && (par.type === "VEVENT" || par.type === "VTODO")) {
           par.alarms ??= [];
           par.alarms.push(curr);
         } else {
-          const id = randomUUID();
+          const id = crypto.randomUUID();
           par[id] = curr;
 
-          if (par.method) { // RFC5545, 3.2
+          if (par.method) {
+            // RFC5545, 3.2
             par[id].method = par.method;
           }
         }
@@ -582,14 +615,14 @@ module.exports = {
       // More specifically, we need to filter the VCALENDAR type because we might end up with a defined rrule
       // due to the subtypes.
 
-      if ((value === 'VEVENT' || value === 'VTODO' || value === 'VJOURNAL') && curr.rrule) {
-        let rule = curr.rrule.replace('RRULE:', '');
+      if ((value === "VEVENT" || value === "VTODO" || value === "VJOURNAL") && curr.rrule) {
+        let rule = curr.rrule.replace("RRULE:", "");
         // Make sure the rrule starts with FREQ=
-        rule = rule.slice(rule.lastIndexOf('FREQ='));
+        rule = rule.slice(rule.lastIndexOf("FREQ="));
         // If no rule start date
-        if (rule.includes('DTSTART') === false) {
+        if (rule.includes("DTSTART") === false) {
           // This a whole day event
-          if (curr.datetype === 'date') {
+          if (curr.datetype === "date") {
             // Get the timezone offset
             // The internal date is stored in UTC format
             const offset = curr.start.getTimezoneOffset();
@@ -598,10 +631,10 @@ module.exports = {
               // Calculate the new startdate with the offset applied, bypass RRULE/Luxon confusion
               // Make the internally stored DATE the actual date (not UTC offseted)
               // Luxon expects local time, not utc, so gets start date wrong if not adjusted
-              curr.start = new Date(curr.start.getTime() + (Math.abs(offset) * 60_000));
+              curr.start = new Date(curr.start.getTime() + Math.abs(offset) * 60_000);
             } else {
               // Get rid of any time (shouldn't be any, but be sure)
-              const x = moment(curr.start).format('MMMM/Do/YYYY');
+              const x = moment(curr.start).format("MMMM/Do/YYYY");
               const comps = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(x);
               if (comps) {
                 curr.start = new Date(comps[3], comps[1] - 1, comps[2]);
@@ -610,7 +643,7 @@ module.exports = {
           }
 
           // If the date has an toISOString function
-          if (curr.start && typeof curr.start.toISOString === 'function') {
+          if (curr.start && typeof curr.start.toISOString === "function") {
             try {
               // If the original date has a TZID, add it
               if (curr.start.tz) {
@@ -618,20 +651,21 @@ module.exports = {
                 // If a timezone is provided, rrule requires the time to be local
                 // but without Z suffix (cf. RFC5545, 3.3.5)
                 const adjustedTimeString = curr.start
-                  .toLocaleString('sv-SE', {timeZone: tz}) // 'sv-SE' outputs 'YYYY-MM-DD' date format
-                  .replaceAll(' ', 'T')
-                  .replaceAll(/[-:Z]/g, '');
+                  .toLocaleString("sv-SE", { timeZone: tz }) // 'sv-SE' outputs 'YYYY-MM-DD' date format
+                  .replaceAll(" ", "T")
+                  .replaceAll(/[-:Z]/g, "");
                 rule += `;DTSTART;TZID=${tz}:${adjustedTimeString}`;
               } else {
-                rule += `;DTSTART=${curr.start.toISOString().replaceAll(/[-:]/g, '')}`;
+                rule += `;DTSTART=${curr.start.toISOString().replaceAll(/[-:]/g, "")}`;
               }
 
-              rule = rule.replace(/\.\d{3}/, '');
-            } catch (error) { // This should not happen, issue #56
-              throw new Error('ERROR when trying to convert to ISOString ' + error);
+              rule = rule.replace(/\.\d{3}/, "");
+            } catch (error) {
+              // This should not happen, issue #56
+              throw new Error("ERROR when trying to convert to ISOString " + error);
             }
           } else {
-            throw new Error('No toISOString function in curr.start ' + curr.start);
+            throw new Error("No toISOString function in curr.start " + curr.start);
           }
         }
 
@@ -645,41 +679,41 @@ module.exports = {
 
       return originalEnd.call(this, value, parameters, curr, stack);
     },
-    SUMMARY: storeParameter('summary'),
-    DESCRIPTION: storeParameter('description'),
-    URL: storeParameter('url'),
-    UID: storeParameter('uid'),
-    LOCATION: storeParameter('location'),
-    DTSTART(value, parameters, curr, stack, line) {
+    "SUMMARY": storeParameter("summary"),
+    "DESCRIPTION": storeParameter("description"),
+    "URL": storeParameter("url"),
+    "UID": storeParameter("uid"),
+    "LOCATION": storeParameter("location"),
+    "DTSTART"(value, parameters, curr, stack, line) {
       // If already defined, this is a duplicate for this event
       if (curr.start === undefined) {
-        curr = dateParameter('start')(value, parameters, curr, stack);
-        return typeParameter('datetype')(value, parameters, curr);
+        curr = dateParameter("start")(value, parameters, curr, stack);
+        return typeParameter("datetype")(value, parameters, curr);
       }
 
-      throw new Error('duplicate DTSTART encountered, line=' + line);
+      throw new Error("duplicate DTSTART encountered, line=" + line);
     },
-    DTEND(value, parameters, curr, stack, line) {
+    "DTEND"(value, parameters, curr, stack, line) {
       // If already defined, this is a duplicate for this event
       if (curr.end === undefined) {
-        return dateParameter('end')(value, parameters, curr, stack);
+        return dateParameter("end")(value, parameters, curr, stack);
       }
 
-      throw new Error('duplicate DTEND encountered, line=' + line);
+      throw new Error("duplicate DTEND encountered, line=" + line);
     },
-    EXDATE: exdateParameter('exdate'),
-    ' CLASS': storeParameter('class'), // Should there be a space in this property?
-    TRANSP: storeParameter('transparency'),
-    GEO: geoParameter('geo'),
-    'PERCENT-COMPLETE': storeParameter('completion'),
-    COMPLETED: dateParameter('completed'),
-    CATEGORIES: categoriesParameter('categories'),
-    FREEBUSY: freebusyParameter('freebusy'),
-    DTSTAMP: dateParameter('dtstamp'),
-    CREATED: dateParameter('created'),
-    'LAST-MODIFIED': dateParameter('lastmodified'),
-    'RECURRENCE-ID': recurrenceParameter('recurrenceid'),
-    RRULE(value, parameters, curr, stack, line) {
+    "EXDATE": exdateParameter("exdate"),
+    " CLASS": storeParameter("class"), // Should there be a space in this property?
+    "TRANSP": storeParameter("transparency"),
+    "GEO": geoParameter("geo"),
+    "PERCENT-COMPLETE": storeParameter("completion"),
+    "COMPLETED": dateParameter("completed"),
+    "CATEGORIES": categoriesParameter("categories"),
+    "FREEBUSY": freebusyParameter("freebusy"),
+    "DTSTAMP": dateParameter("dtstamp"),
+    "CREATED": dateParameter("created"),
+    "LAST-MODIFIED": dateParameter("lastmodified"),
+    "RECURRENCE-ID": recurrenceParameter("recurrenceid"),
+    "RRULE"(value, parameters, curr, stack, line) {
       curr.rrule = line;
       return curr;
     },
@@ -701,7 +735,7 @@ module.exports = {
   },
 
   parseLines(lines, limit, ctx, stack, lastIndex, cb) {
-    if (!cb && typeof ctx === 'function') {
+    if (!cb && typeof ctx === "function") {
       cb = ctx;
       ctx = undefined;
     }
@@ -721,8 +755,8 @@ module.exports = {
       }
 
       // Remove any double quotes in any tzid statement// except around (utc+hh:mm
-      if (l.includes('TZID=') && !l.includes('"(')) {
-        l = l.replaceAll('"', '');
+      if (l.includes("TZID=") && !l.includes('"(')) {
+        l = l.replaceAll('"', "");
       }
 
       const exp = /^([\w\d-]+)((?:;[\w\d-]+=(?:(?:"[^"]*")|[^":;]+))*):(.*)$/;
@@ -737,7 +771,7 @@ module.exports = {
 
       const value = kv.at(-1);
       const name = kv[0];
-      const parameters = kv[1] ? kv[1].split(';').slice(1) : [];
+      const parameters = kv[1] ? kv[1].split(";").slice(1) : [];
 
       ctx = this.handleObject(name, value, parameters, ctx, stack, l) || {};
       if (++limitCounter > limit) {

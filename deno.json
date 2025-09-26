@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "moment-timezone": "npm:moment-timezone@0.6.0",
+    "rrule": "npm:rrule@2.8.1"
+  },
+  "nodeModulesDir": "auto"
+}

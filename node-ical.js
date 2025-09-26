@@ -1,5 +1,5 @@
-const fs = require('node:fs');
-const ical = require('./ical.js');
+const fs = require("node:fs");
+const ical = require("./ical.ts");
 
 /**
  * ICal event object.
@@ -67,10 +67,10 @@ function promiseCallback(fn, cb) {
   }
 
   promise
-    .then(returnValue => {
+    .then((returnValue) => {
       cb(null, returnValue);
     })
-    .catch(error => {
+    .catch((error) => {
       cb(error, null);
     });
 }
@@ -96,16 +96,16 @@ const autodetect = {};
  */
 async.fromURL = function (url, options, cb) {
   // Normalize overloads: (url, cb) or (url, options, cb)
-  if (typeof options === 'function' && cb === undefined) {
+  if (typeof options === "function" && cb === undefined) {
     cb = options;
     options = undefined;
   }
 
   return promiseCallback((resolve, reject) => {
-    const fetchOptions = (options && typeof options === 'object') ? {...options} : {};
+    const fetchOptions = options && typeof options === "object" ? { ...options } : {};
 
     fetch(url, fetchOptions)
-      .then(response => {
+      .then((response) => {
         if (!response.ok) {
           // Mimic previous error style
           throw new Error(`${response.status} ${response.statusText}`);
@@ -113,7 +113,7 @@ async.fromURL = function (url, options, cb) {
 
         return response.text();
       })
-      .then(data => {
+      .then((data) => {
         ical.parseICS(data, (error, ics) => {
           if (error) {
             reject(error);
@@ -123,7 +123,7 @@ async.fromURL = function (url, options, cb) {
           resolve(ics);
         });
       })
-      .catch(error => {
+      .catch((error) => {
         reject(error);
       });
   }, cb);
@@ -140,7 +140,7 @@ async.fromURL = function (url, options, cb) {
  */
 async.parseFile = function (filename, cb) {
   return promiseCallback((resolve, reject) => {
-    fs.readFile(filename, 'utf8', (error, data) => {
+    fs.readFile(filename, "utf8", (error, data) => {
       if (error) {
         reject(error);
         return;
@@ -188,7 +188,7 @@ async.parseICS = function (data, cb) {
  * @returns {iCalData} Parsed iCal data.
  */
 sync.parseFile = function (filename) {
-  const data = fs.readFileSync(filename, 'utf8');
+  const data = fs.readFileSync(filename, "utf8");
   return ical.parseICS(data);
 };
 
